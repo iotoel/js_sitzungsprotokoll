@@ -534,84 +534,170 @@ with st.sidebar:
         st.caption("Neue, noch nicht gespeicherte Sitzung")
 
 st.title("📝 Sitzungsprotokoll Jungschi Neuhof")
-st.caption("Die Reihenfolge der Eingabe entspricht dem späteren Protokoll.")
+st.caption("Die Eingabemaske ist wie das spätere PDF als kompaktes Protokoll aufgebaut.")
 
-st.subheader("1. Heutige Sitzung")
-st.date_input("Sitzungsdatum", key="sitzung_vom", format="DD.MM.YYYY")
-st.text_input("Thema von heute", key="thema_heute")
-
-st.markdown("**Wer ist heute anwesend?**")
-attendance_cols = st.columns(2)
-for index, name in enumerate(TEILNEHMENDE):
-    with attendance_cols[index % 2]:
-        st.checkbox(name, key=f"anw_{index}")
-
-st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
-st.subheader("2. Nächstes Mal")
-next_col1, next_col2 = st.columns(2)
-with next_col1:
-    st.date_input("Datum nächstes Mal", key="naechstes_datum", value=None, format="DD.MM.YYYY")
-    st.text_input("Thema nächstes Mal", key="naechstes_thema")
-with next_col2:
-    st.text_input("Inputverantwortliche Person nächstes Mal", key="naechster_input_verantwortlich")
-
-st.text_area("Gedanken zum nächsten Input", key="gedanken_naechster_input", height=150)
-st.text_area("Programmideen zum nächsten Nachmittag", key="programmideen_naechster_nachmittag", height=170)
-
-st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
-st.subheader("3. Heutiges Programm")
-st.caption("Die festen Blöcke sind automatisch vorhanden. Zusätzliche Blöcke werden vor 16:58 eingefügt.")
-
-for position, block in enumerate(st.session_state["program_blocks"]):
-    block_id = block["id"]
+# Oberer PDF-Bereich: heutige Sitzung links, Anwesenheit rechts
+st.markdown('<div class="pdf-band today-band">Heutige Sitzung</div>', unsafe_allow_html=True)
+today_left, today_right = st.columns([2, 1], gap="small", vertical_alignment="top")
+with today_left:
     with st.container(border=True):
+        st.date_input("Sitzung vom", key="sitzung_vom", format="DD.MM.YYYY")
+        st.text_input("Thema heute", key="thema_heute")
+with today_right:
+    with st.container(border=True):
+        present_count = sum(
+            bool(st.session_state.get(f"anw_{index}", False))
+            for index, _ in enumerate(TEILNEHMENDE)
+        )
+        st.markdown(f"**Anwesend ({present_count}/{len(TEILNEHMENDE)})**")
+        for index, name in enumerate(TEILNEHMENDE):
+            st.checkbox(name, key=f"anw_{index}")
+
+# Nächstes Mal in derselben Tabellenlogik wie im PDF
+st.markdown('<div class="pdf-band next-band">Nächstes Mal</div>', unsafe_allow_html=True)
+next_date_col, next_topic_col, next_owner_col = st.columns([1, 2, 1.45], gap="small")
+with next_date_col:
+    st.date_input("Datum", key="naechstes_datum", value=None, format="DD.MM.YYYY")
+with next_topic_col:
+    st.text_input("Thema", key="naechstes_thema")
+with next_owner_col:
+    st.text_input("Input verantwortlich", key="naechster_input_verantwortlich")
+
+with st.container(border=True):
+    st.text_area(
+        "Gedanken zum nächsten Input",
+        key="gedanken_naechster_input",
+        height=120,
+    )
+with st.container(border=True):
+    st.text_area(
+        "Programmideen zum nächsten Nachmittag",
+        key="programmideen_naechster_nachmittag",
+        height=140,
+    )
+
+# Programm heute als echte dreispaltige Eingabetabelle
+st.markdown('<div class="pdf-band today-band">Programm heute</div>', unsafe_allow_html=True)
+header_time, header_title, header_notes, header_action = st.columns([1, 2.2, 5.4, 0.55], gap="small")
+header_time.markdown("**Zeit**")
+header_title.markdown("**Block**")
+header_notes.markdown("**Notizen / Ablauf**")
+header_action.markdown("")
+
+for block in st.session_state["program_blocks"]:
+    block_id = block["id"]
+    time_col, title_col, notes_col, remove_col = st.columns([1, 2.2, 5.4, 0.55], gap="small")
+    with time_col:
         if block.get("fixed", False):
-            st.markdown(f"**{block['time']} {block['title']}**")
-            st.text_area(
-                "Notizen / Ablauf",
-                value=block.get("details", ""),
-                key=f"program_details_{block_id}",
-                height=90,
+            st.text_input(
+                "Zeit",
+                value=block.get("time", ""),
+                key=f"fixed_time_display_{block_id}",
+                disabled=True,
                 label_visibility="collapsed",
             )
         else:
-            time_col, title_col, remove_col = st.columns([1, 3, 0.7])
-            with time_col:
-                st.text_input("Zeit", value=block.get("time", ""), key=f"program_time_{block_id}", placeholder="z.B. 15:00")
-            with title_col:
-                st.text_input("Titel des Blocks", value=block.get("title", ""), key=f"program_title_{block_id}")
-            with remove_col:
-                st.write("")
-                st.write("")
-                st.button("🗑️", key=f"remove_program_{block_id}", on_click=remove_program_block, args=(block_id,), help="Block löschen")
-            st.text_area("Notizen / Ablauf", value=block.get("details", ""), key=f"program_details_{block_id}", height=100)
+            st.text_input(
+                "Zeit",
+                value=block.get("time", ""),
+                key=f"program_time_{block_id}",
+                placeholder="15:00",
+                label_visibility="collapsed",
+            )
+    with title_col:
+        if block.get("fixed", False):
+            st.text_input(
+                "Block",
+                value=block.get("title", ""),
+                key=f"fixed_title_display_{block_id}",
+                disabled=True,
+                label_visibility="collapsed",
+            )
+        else:
+            st.text_input(
+                "Block",
+                value=block.get("title", ""),
+                key=f"program_title_{block_id}",
+                label_visibility="collapsed",
+            )
+    with notes_col:
+        st.text_area(
+            "Notizen / Ablauf",
+            value=block.get("details", ""),
+            key=f"program_details_{block_id}",
+            height=76,
+            label_visibility="collapsed",
+        )
+    with remove_col:
+        if not block.get("fixed", False):
+            st.button(
+                "🗑️",
+                key=f"remove_program_{block_id}",
+                on_click=remove_program_block,
+                args=(block_id,),
+                help="Block löschen",
+            )
 
-st.button("➕ Weiteren Programmblock hinzufügen", on_click=add_program_block, use_container_width=True)
+st.button(
+    "➕ Weiteren Programmblock hinzufügen",
+    on_click=add_program_block,
+    use_container_width=True,
+)
 
-st.subheader("4. Input übernächstes Mal")
-over_col1, over_col2 = st.columns(2)
-with over_col1:
-    st.date_input("Datum übernächstes Mal", key="uebernaechstes_datum", value=None, format="DD.MM.YYYY")
-with over_col2:
-    st.text_input("Inputverantwortliche Person übernächstes Mal", key="uebernaechster_input_verantwortlich")
+# Übernächstes Mal als kompakte PDF-Zeile
+st.markdown('<div class="pdf-band overnext-band">Input übernächstes Mal</div>', unsafe_allow_html=True)
+over_date_col, over_owner_col = st.columns([1, 2.5], gap="small")
+with over_date_col:
+    st.date_input(
+        "Datum",
+        key="uebernaechstes_datum",
+        value=None,
+        format="DD.MM.YYYY",
+    )
+with over_owner_col:
+    st.text_input(
+        "Verantwortlich",
+        key="uebernaechster_input_verantwortlich",
+    )
 
-st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
-st.subheader("5. Diverses")
+# Diverses wie die Karten im PDF
+st.markdown('<div class="pdf-band misc-band">Diverses</div>', unsafe_allow_html=True)
 if not st.session_state["diverses_cards"]:
-    st.caption("Noch keine Karte vorhanden.")
+    st.caption("Noch keine Diverses-Karte vorhanden.")
 
 for card in st.session_state["diverses_cards"]:
     card_id = card["id"]
     with st.container(border=True):
-        title_col, delete_col = st.columns([6, 0.7])
+        title_col, delete_col = st.columns([8, 0.55], gap="small")
         with title_col:
-            st.text_input("Titel", value=card.get("title", ""), key=f"div_title_{card_id}", placeholder="Titel der Karte")
+            st.text_input(
+                "Kartentitel",
+                value=card.get("title", ""),
+                key=f"div_title_{card_id}",
+                placeholder="Titel",
+                label_visibility="collapsed",
+            )
         with delete_col:
-            st.write("")
-            st.button("🗑️", key=f"remove_div_{card_id}", on_click=remove_diverses_card, args=(card_id,), help="Karte löschen")
-        st.text_area("Inhalt", value=card.get("text", ""), key=f"div_text_{card_id}", height=120)
+            st.button(
+                "🗑️",
+                key=f"remove_div_{card_id}",
+                on_click=remove_diverses_card,
+                args=(card_id,),
+                help="Karte löschen",
+            )
+        st.text_area(
+            "Inhalt",
+            value=card.get("text", ""),
+            key=f"div_text_{card_id}",
+            height=105,
+            label_visibility="collapsed",
+        )
 
-st.button("➕ Diverses-Karte hinzufügen", on_click=add_diverses_card, use_container_width=True)
+st.button(
+    "➕ Diverses-Karte hinzufügen",
+    on_click=add_diverses_card,
+    use_container_width=True,
+)
 
 st.divider()
 action_save, action_pdf = st.columns(2)
@@ -622,7 +708,6 @@ with action_save:
             st.success(f"Entwurf gespeichert: {draft_label(saved)}")
         except OSError as exc:
             st.error(f"Der Entwurf konnte nicht gespeichert werden: {exc}")
-
 with action_pdf:
     try:
         pdf_payload = payload_from_state()
@@ -638,3 +723,4 @@ with action_pdf:
         )
     except Exception as exc:
         st.error(f"Das PDF konnte nicht erstellt werden: {exc}")
+
