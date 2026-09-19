@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -74,16 +74,18 @@ def default_program() -> list[dict]:
 
 
 def default_state() -> dict:
+    today = date.today()
+
     return {
-        "sitzung_vom": date.today(),
+        "sitzung_vom": today,
+        "naechstes_datum": today + timedelta(weeks=2),
+        "uebernaechstes_datum": today + timedelta(weeks=4),
         "thema_heute": "",
-        "naechstes_datum": None,
         "naechstes_thema": "",
         "naechster_input_verantwortlich": "",
         "gedanken_naechster_input": "",
         "programmideen_naechster_nachmittag": "",
         "programm_heute": "",
-        "uebernaechstes_datum": None,
         "uebernaechster_input_verantwortlich": "",
         "program_blocks": default_program(),
         "diverses_cards": [],
@@ -493,6 +495,11 @@ def create_pdf(payload: dict) -> bytes:
     return output.getvalue()
 
 
+# ============================================================================
+# Start
+# ============================================================================
+
+
 initialize_state()
 
 st.markdown("""
@@ -516,6 +523,10 @@ div[data-testid="stCheckbox"] label {gap:.35rem;}
 
 if st.session_state.get("flash"):
     st.success(st.session_state.pop("flash"))
+
+# =============================================================================
+# Sidebar
+# =============================================================================
 
 with st.sidebar:
     st.header("📁 Alte Sitzungen")
@@ -550,24 +561,53 @@ with st.sidebar:
     else:
         st.caption("Neue, noch nicht gespeicherte Sitzung")
 
+
+# ============================================================================
+# Seitenteil
+# ============================================================================
+
 st.title("📝 Sitzungsprotokoll Jungschi Neuhof")
-st.caption("Die Eingabe ist wie das PDF aufgebaut.")
+
+# ============================================================================
+# Heutige Sitzung
+# ============================================================================
 
 st.markdown('<div class="pdf-band today-band">Heutige Sitzung</div>', unsafe_allow_html=True)
-st.date_input("Sitzungsdatum", key="sitzung_vom", format="DD.MM.YYYY")
-st.text_input("Thema von heute", key="thema_heute")
 
-st.markdown("**Wer ist heute anwesend?**")
-attendance_cols = st.columns(2)
+# Erste Zeile
+col_date, col_topic = st.columns([1, 9], gap="small")
+
+with col_date:
+    st.date_input(
+        "Sitzung vom",
+        key="sitzung_vom",
+        format="DD.MM.YYYY"
+    )
+
+with col_topic:
+    st.text_input(
+        "Thema",
+        key="thema_heute"
+    )
+
+# Anwesenheit kompakt 4 x 2
+st.markdown("**Anwesend**")
+attendance_cols = st.columns(4)
 for index, name in enumerate(TEILNEHMENDE):
-    with attendance_cols[index % 2]:
+    with attendance_cols[index % 4]:
         st.checkbox(name, key=f"anw_{index}")
 
 
+st.markdown("")
+
+# ========================================================================
+# Nächstes Mal
+# ========================================================================
+
 st.markdown('<div class="pdf-band next-band">Nächstes Mal</div>', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1, 2, 1.5])
+c1, c2, c3 = st.columns([1, 6, 2])
 with c1:
-    st.date_input("Datum", key="naechstes_datum", value=None, format="DD.MM.YYYY")
+    st.date_input("Datum", key="naechstes_datum", format="DD.MM.YYYY")
 with c2:
     st.text_input("Thema", key="naechstes_thema")
 with c3:
@@ -603,7 +643,7 @@ st.text_area("Heutiges Programm", key="programm_heute", height=220, label_visibi
 st.markdown('<div class="pdf-band overnext-band">Input übernächstes Mal</div>', unsafe_allow_html=True)
 o1, o2 = st.columns([1, 2.5])
 with o1:
-    st.date_input("Datum", key="uebernaechstes_datum", value=None, format="DD.MM.YYYY")
+    st.date_input("Datum", key="uebernaechstes_datum", format="DD.MM.YYYY")
 with o2:
     st.text_input("Verantwortlich", key="uebernaechster_input_verantwortlich")
 
