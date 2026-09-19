@@ -48,16 +48,8 @@ FIXED_PROGRAM = [
 ]
 
 BLUE = colors.HexColor("#1F4E78")
-TODAY = colors.HexColor("#D9EAF7")
-TODAY_DARK = colors.HexColor("#1F4E78")
-NEXT = colors.HexColor("#E4F2DF")
-NEXT_DARK = colors.HexColor("#376B2B")
-OVERNEXT = colors.HexColor("#FFF0D5")
-OVERNEXT_DARK = colors.HexColor("#8A5600")
-MISC = colors.HexColor("#EEE1F6")
-MISC_DARK = colors.HexColor("#67417E")
-LIGHT_BLUE = TODAY
-PALE_BLUE = colors.HexColor("#F5F7F9")
+LIGHT_BLUE = colors.HexColor("#D9EAF7")
+PALE_BLUE = colors.HexColor("#EEF5FA")
 BORDER = colors.HexColor("#7F8C8D")
 GRAY = colors.HexColor("#666666")
 
@@ -82,7 +74,6 @@ def default_state() -> dict:
         "naechster_input_verantwortlich": "",
         "gedanken_naechster_input": "",
         "programmideen_naechster_nachmittag": "",
-        "programm_heute": "",
         "uebernaechstes_datum": None,
         "uebernaechster_input_verantwortlich": "",
         "program_blocks": default_program(),
@@ -193,7 +184,6 @@ def payload_from_state() -> dict:
         "naechster_input_verantwortlich": st.session_state["naechster_input_verantwortlich"],
         "gedanken_naechster_input": st.session_state["gedanken_naechster_input"],
         "programmideen_naechster_nachmittag": st.session_state["programmideen_naechster_nachmittag"],
-        "programm_heute": st.session_state["programm_heute"],
         "program_blocks": st.session_state["program_blocks"],
         "uebernaechstes_datum": st.session_state["uebernaechstes_datum"].isoformat() if st.session_state["uebernaechstes_datum"] else "",
         "uebernaechster_input_verantwortlich": st.session_state["uebernaechster_input_verantwortlich"],
@@ -212,13 +202,15 @@ def load_payload(payload: dict) -> None:
     st.session_state["naechster_input_verantwortlich"] = str(payload.get("naechster_input_verantwortlich", payload.get("verantwortlich", "")))
     st.session_state["gedanken_naechster_input"] = str(payload.get("gedanken_naechster_input", payload.get("gedanken", "")))
     st.session_state["programmideen_naechster_nachmittag"] = str(payload.get("programmideen_naechster_nachmittag", payload.get("programmideen", "")))
-    st.session_state["programm_heute"] = str(payload.get("programm_heute", ""))
     st.session_state["uebernaechstes_datum"] = parse_date(payload.get("uebernaechstes_datum"), None)
     st.session_state["uebernaechster_input_verantwortlich"] = str(payload.get("uebernaechster_input_verantwortlich", ""))
 
     blocks = payload.get("program_blocks")
     if not blocks:
         blocks = default_program()
+        old_program = str(payload.get("programm_heute", ""))
+        if old_program:
+            blocks[0]["details"] = old_program
     for block in blocks:
         block.setdefault("id", new_id())
         block.setdefault("details", "")
@@ -299,11 +291,11 @@ def p(text, style):
     return Paragraph(esc(text) if str(text).strip() else "&nbsp;", style)
 
 
-def section_header(text: str, style, width=186 * mm, fill=LIGHT_BLUE, text_color=BLUE):
+def section_header(text: str, style, width=186 * mm):
     table = Table([[Paragraph(f"<b>{esc(text)}</b>", style)]], colWidths=[width])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), fill),
-        ("TEXTCOLOR", (0, 0), (-1, -1), text_color),
+        ("BACKGROUND", (0, 0), (-1, -1), LIGHT_BLUE),
+        ("TEXTCOLOR", (0, 0), (-1, -1), BLUE),
         ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
         ("LEFTPADDING", (0, 0), (-1, -1), 2.3 * mm),
         ("RIGHTPADDING", (0, 0), (-1, -1), 2.3 * mm),
@@ -313,12 +305,12 @@ def section_header(text: str, style, width=186 * mm, fill=LIGHT_BLUE, text_color
     return table
 
 
-def content_box(title: str, content: str, body_style, small_style, fill=PALE_BLUE, text_color=BLUE):
+def content_box(title: str, content: str, body_style, small_style):
     data = [[Paragraph(f"<b>{esc(title)}</b>", small_style)], [p(content, body_style)]]
     table = Table(data, colWidths=[186 * mm])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), fill),
-        ("TEXTCOLOR", (0, 0), (-1, 0), text_color),
+        ("BACKGROUND", (0, 0), (-1, 0), PALE_BLUE),
+        ("TEXTCOLOR", (0, 0), (-1, 0), BLUE),
         ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
         ("LINEBELOW", (0, 0), (-1, 0), 0.5, BORDER),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -407,7 +399,7 @@ def create_pdf(payload: dict) -> bytes:
 
     story = [Paragraph("Sitzungsprotokoll", title_style), top, Spacer(1, 3 * mm)]
 
-    story.append(section_header("Nächstes Mal", small, fill=NEXT, text_color=NEXT_DARK))
+    story.append(section_header("Nächstes Mal", small))
     next_meta = Table([
         [Paragraph("<b>Datum</b>", small), p(date_next, body),
          Paragraph("<b>Thema</b>", small), p(payload.get("naechstes_thema", ""), body),
@@ -429,7 +421,7 @@ def create_pdf(payload: dict) -> bytes:
     story.extend([
         next_meta,
         Spacer(1, 2.2 * mm),
-        content_box("Gedanken zum nächsten Input", payload.get("gedanken_naechster_input", ""), body, small, fill=NEXT, text_color=NEXT_DARK),
+        content_box("Gedanken zum nächsten Input", payload.get("gedanken_naechster_input", ""), body, small),
         Spacer(1, 2.2 * mm),
         content_box("Programmideen zum nächsten Nachmittag", payload.get("programmideen_naechster_nachmittag", ""), body, small),
         Spacer(1, 3 * mm),
@@ -445,8 +437,8 @@ def create_pdf(payload: dict) -> bytes:
         ])
     program_table = Table(program_rows, colWidths=[20 * mm, 48 * mm, 118 * mm], repeatRows=1)
     program_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), NEXT),
-        ("TEXTCOLOR", (0, 0), (-1, 0), NEXT_DARK),
+        ("BACKGROUND", (0, 0), (-1, 0), PALE_BLUE),
+        ("TEXTCOLOR", (0, 0), (-1, 0), BLUE),
         ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -456,7 +448,7 @@ def create_pdf(payload: dict) -> bytes:
         ("TOPPADDING", (0, 0), (-1, -1), 1.8 * mm),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8 * mm),
     ]))
-    story.extend([program_table, Spacer(1, 3 * mm), content_box("Programm heute", payload.get("programm_heute", ""), body, small, fill=TODAY, text_color=TODAY_DARK), Spacer(1, 3 * mm)])
+    story.extend([program_table, Spacer(1, 3 * mm)])
 
     overnext = Table([
         [Paragraph("<b>Input übernächstes Mal</b>", small),
@@ -464,10 +456,10 @@ def create_pdf(payload: dict) -> bytes:
          Paragraph("<b>Verantwortlich</b>", small), p(payload.get("uebernaechster_input_verantwortlich", ""), body)]
     ], colWidths=[43 * mm, 17 * mm, 31 * mm, 29 * mm, 66 * mm])
     overnext.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), OVERNEXT),
-        ("BACKGROUND", (1, 0), (1, 0), OVERNEXT),
-        ("BACKGROUND", (3, 0), (3, 0), OVERNEXT),
-        ("TEXTCOLOR", (0, 0), (0, 0), OVERNEXT_DARK),
+        ("BACKGROUND", (0, 0), (0, 0), LIGHT_BLUE),
+        ("BACKGROUND", (1, 0), (1, 0), PALE_BLUE),
+        ("BACKGROUND", (3, 0), (3, 0), PALE_BLUE),
+        ("TEXTCOLOR", (0, 0), (0, 0), BLUE),
         ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.4, BORDER),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -476,18 +468,18 @@ def create_pdf(payload: dict) -> bytes:
         ("TOPPADDING", (0, 0), (-1, -1), 1.8 * mm),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8 * mm),
     ]))
-    story.extend([overnext, Spacer(1, 3 * mm), section_header("Diverses", small, fill=MISC, text_color=MISC_DARK)])
+    story.extend([overnext, Spacer(1, 3 * mm), section_header("Diverses", small)])
 
     cards = payload.get("diverses_cards", [])
     if cards:
         for card in cards:
             card_title = card.get("title", "").strip() or "Diverses"
             story.extend([
-                KeepTogether([content_box(card_title, card.get("text", ""), body, small, fill=MISC, text_color=MISC_DARK)]),
+                KeepTogether([content_box(card_title, card.get("text", ""), body, small)]),
                 Spacer(1, 2 * mm),
             ])
     else:
-        story.append(content_box("Diverses", "", body, small, fill=MISC, text_color=MISC_DARK))
+        story.append(content_box("Diverses", "", body, small))
 
     doc.build(story, onFirstPage=add_footer, onLaterPages=add_footer)
     return output.getvalue()
@@ -501,13 +493,7 @@ st.markdown("""
 h1, h2, h3 {color: #1F4E78;}
 [data-testid="stSidebar"] {background: #f5f8fa;}
 .section-line {border-top: 3px solid #1F4E78; margin: 1.6rem 0 1rem 0;}
-.card-label {font-weight:700;color:#1F4E78;margin-top:.4rem;}
-.pdf-band,.next-subband{border:1px solid #7F8C8D;border-radius:5px;padding:.5rem .75rem;margin:1rem 0 .55rem;font-weight:750}
-.today-band{background:#D9EAF7;color:#1F4E78}
-.next-band,.next-subband{background:#E4F2DF;color:#376B2B}
-.overnext-band{background:#FFF0D5;color:#8A5600}
-.misc-band{background:#EEE1F6;color:#67417E}
-
+.card-label {font-weight: 700; color: #1F4E78; margin-top: .4rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -548,74 +534,94 @@ with st.sidebar:
         st.caption("Neue, noch nicht gespeicherte Sitzung")
 
 st.title("📝 Sitzungsprotokoll Jungschi Neuhof")
-st.caption("Die Eingabe ist wie das PDF aufgebaut.")
+st.caption("Die Reihenfolge der Eingabe entspricht dem späteren Protokoll.")
 
-st.markdown('<div class="pdf-band today-band">Heutige Sitzung</div>', unsafe_allow_html=True)
-today_left, today_right = st.columns([2, 1], gap="small")
-with today_left:
+st.subheader("1. Heutige Sitzung")
+# Kompakte Zeile: Datumsfeld so klein wie möglich, Thema bis an den Rand.
+today_date_col, today_topic_col = st.columns([1, 4.8], gap="small")
+with today_date_col:
     st.date_input("Sitzung vom", key="sitzung_vom", format="DD.MM.YYYY")
-    st.text_input("Thema heute", key="thema_heute")
-with today_right:
-    present_count = sum(bool(st.session_state.get(f"anw_{i}", False)) for i in range(len(TEILNEHMENDE)))
-    st.markdown(f"**Anwesend ({present_count}/{len(TEILNEHMENDE)})**")
-    for index, name in enumerate(TEILNEHMENDE):
-        st.checkbox(name, key=f"anw_{index}")
+with today_topic_col:
+    st.text_input("Thema", key="thema_heute")
 
-st.markdown('<div class="pdf-band next-band">Nächstes Mal</div>', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([1, 2, 1.5])
-with c1:
-    st.date_input("Datum", key="naechstes_datum", value=None, format="DD.MM.YYYY")
-with c2:
-    st.text_input("Thema", key="naechstes_thema")
-with c3:
-    st.text_input("Input verantwortlich", key="naechster_input_verantwortlich")
-st.text_area("Gedanken zum nächsten Input", key="gedanken_naechster_input", height=120)
+# Anwesenheit in zwei kompakten Reihen mit je vier Personen.
+present_count = sum(
+    bool(st.session_state.get(f"anw_{index}", False))
+    for index in range(len(TEILNEHMENDE))
+)
+st.markdown(f"**Anwesend ({present_count}/{len(TEILNEHMENDE)})**")
+for row_start in (0, 4):
+    attendance_cols = st.columns(4, gap="small")
+    for offset, column in enumerate(attendance_cols):
+        index = row_start + offset
+        with column:
+            st.checkbox(TEILNEHMENDE[index], key=f"anw_{index}")
 
-st.markdown('<div class="next-subband">Programmideen zum nächsten Nachmittag</div>', unsafe_allow_html=True)
-head1, head2, head3, head4 = st.columns([1, 2.2, 5.4, .55])
-head1.markdown("**Zeit**"); head2.markdown("**Block**"); head3.markdown("**Notizen / Ablauf**")
-for block in st.session_state["program_blocks"]:
-    bid = block["id"]
-    ctime, ctitle, cnotes, cdelete = st.columns([1, 2.2, 5.4, .55])
-    with ctime:
-        if block.get("fixed"):
-            st.text_input("Zeit", value=block["time"], key=f"fixed_time_{bid}", disabled=True, label_visibility="collapsed")
+st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
+st.subheader("2. Nächstes Mal")
+next_col1, next_col2 = st.columns([1, 4.8], gap="small")
+with next_col1:
+    st.date_input("Datum nächstes Mal", key="naechstes_datum", format="DD.MM.YYYY")
+    st.text_input("Thema nächstes Mal", key="naechstes_thema")
+with next_col2:
+    st.text_input("Inputverantwortliche Person nächstes Mal", key="naechster_input_verantwortlich")
+
+st.text_area("Gedanken zum nächsten Input", key="gedanken_naechster_input", height=150)
+st.text_area("Programmideen zum nächsten Nachmittag", key="programmideen_naechster_nachmittag", height=170)
+
+st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
+st.subheader("3. Heutiges Programm")
+st.caption("Die festen Blöcke sind automatisch vorhanden. Zusätzliche Blöcke werden vor 16:58 eingefügt.")
+
+for position, block in enumerate(st.session_state["program_blocks"]):
+    block_id = block["id"]
+    with st.container(border=True):
+        if block.get("fixed", False):
+            st.markdown(f"**{block['time']} {block['title']}**")
+            st.text_area(
+                "Notizen / Ablauf",
+                value=block.get("details", ""),
+                key=f"program_details_{block_id}",
+                height=90,
+                label_visibility="collapsed",
+            )
         else:
-            st.text_input("Zeit", value=block.get("time", ""), key=f"program_time_{bid}", label_visibility="collapsed")
-    with ctitle:
-        if block.get("fixed"):
-            st.text_input("Block", value=block["title"], key=f"fixed_title_{bid}", disabled=True, label_visibility="collapsed")
-        else:
-            st.text_input("Block", value=block.get("title", ""), key=f"program_title_{bid}", label_visibility="collapsed")
-    with cnotes:
-        st.text_area("Notizen", value=block.get("details", ""), key=f"program_details_{bid}", height=72, label_visibility="collapsed")
-    with cdelete:
-        if not block.get("fixed"):
-            st.button("🗑️", key=f"remove_program_{bid}", on_click=remove_program_block, args=(bid,))
-st.button("➕ Programmblock hinzufügen", on_click=add_program_block, use_container_width=True)
+            time_col, title_col, remove_col = st.columns([1, 3, 0.7])
+            with time_col:
+                st.text_input("Zeit", value=block.get("time", ""), key=f"program_time_{block_id}", placeholder="z.B. 15:00")
+            with title_col:
+                st.text_input("Titel des Blocks", value=block.get("title", ""), key=f"program_title_{block_id}")
+            with remove_col:
+                st.write("")
+                st.write("")
+                st.button("🗑️", key=f"remove_program_{block_id}", on_click=remove_program_block, args=(block_id,), help="Block löschen")
+            st.text_area("Notizen / Ablauf", value=block.get("details", ""), key=f"program_details_{block_id}", height=100)
 
-st.markdown('<div class="pdf-band today-band">Programm heute</div>', unsafe_allow_html=True)
-st.text_area("Heutiges Programm", key="programm_heute", height=220, label_visibility="collapsed")
+st.button("➕ Weiteren Programmblock hinzufügen", on_click=add_program_block, use_container_width=True)
 
-st.markdown('<div class="pdf-band overnext-band">Input übernächstes Mal</div>', unsafe_allow_html=True)
-o1, o2 = st.columns([1, 2.5])
-with o1:
-    st.date_input("Datum", key="uebernaechstes_datum", value=None, format="DD.MM.YYYY")
-with o2:
-    st.text_input("Verantwortlich", key="uebernaechster_input_verantwortlich")
+st.subheader("4. Input übernächstes Mal")
+over_col1, over_col2 = st.columns([1, 4.8], gap="small")
+with over_col1:
+    st.date_input("Datum übernächstes Mal", key="uebernaechstes_datum", format="DD.MM.YYYY")
+with over_col2:
+    st.text_input("Inputverantwortliche Person übernächstes Mal", key="uebernaechster_input_verantwortlich")
 
-st.markdown('<div class="pdf-band misc-band">Diverses</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-line"></div>', unsafe_allow_html=True)
+st.subheader("5. Diverses")
 if not st.session_state["diverses_cards"]:
     st.caption("Noch keine Karte vorhanden.")
+
 for card in st.session_state["diverses_cards"]:
-    cid = card["id"]
+    card_id = card["id"]
     with st.container(border=True):
-        x1, x2 = st.columns([8, .55])
-        with x1:
-            st.text_input("Titel", value=card.get("title", ""), key=f"div_title_{cid}", label_visibility="collapsed", placeholder="Titel")
-        with x2:
-            st.button("🗑️", key=f"remove_div_{cid}", on_click=remove_diverses_card, args=(cid,))
-        st.text_area("Inhalt", value=card.get("text", ""), key=f"div_text_{cid}", height=105, label_visibility="collapsed")
+        title_col, delete_col = st.columns([6, 0.7])
+        with title_col:
+            st.text_input("Titel", value=card.get("title", ""), key=f"div_title_{card_id}", placeholder="Titel der Karte")
+        with delete_col:
+            st.write("")
+            st.button("🗑️", key=f"remove_div_{card_id}", on_click=remove_diverses_card, args=(card_id,), help="Karte löschen")
+        st.text_area("Inhalt", value=card.get("text", ""), key=f"div_text_{card_id}", height=120)
+
 st.button("➕ Diverses-Karte hinzufügen", on_click=add_diverses_card, use_container_width=True)
 
 st.divider()
