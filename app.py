@@ -86,6 +86,7 @@ def default_state() -> dict:
         "gedanken_naechster_input": "",
         "programmideen_naechster_nachmittag": "",
         "programm_heute": "",
+        "uebernaechster_input_thema": "",
         "uebernaechster_input_verantwortlich": "",
         "program_blocks": default_program(),
         "diverses_cards": [],
@@ -641,10 +642,12 @@ st.markdown('<div class="pdf-band today-band">Programm heute</div>', unsafe_allo
 st.text_area("Heutiges Programm", key="programm_heute", height=220, label_visibility="collapsed")
 
 st.markdown('<div class="pdf-band overnext-band">Input übernächstes Mal</div>', unsafe_allow_html=True)
-o1, o2 = st.columns([1, 2.5])
+o1, o2, o3 = st.columns([1, 6, 2])
 with o1:
     st.date_input("Datum", key="uebernaechstes_datum", format="DD.MM.YYYY")
 with o2:
+    st.text_input("Thema", key="uebernaechster_input_thema")
+with o3:
     st.text_input("Verantwortlich", key="uebernaechster_input_verantwortlich")
 
 st.markdown('<div class="pdf-band misc-band">Diverses</div>', unsafe_allow_html=True)
