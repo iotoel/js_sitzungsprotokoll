@@ -16,11 +16,17 @@ from __future__ import annotations
 
 import json
 import re
+from io import BytesIO
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 import streamlit as st
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
 
 
 # #############################################################################
@@ -237,6 +243,7 @@ def payload_from_state() -> dict:
         "programm_heute": st.session_state["programm_heute"],
         "program_blocks": st.session_state["program_blocks"],
         "uebernaechstes_datum": st.session_state["uebernaechstes_datum"].isoformat() if st.session_state["uebernaechstes_datum"] else "",
+        "uebernaechster_input_thema": st.session_state["uebernaechster_input_thema"],
         "uebernaechster_input_verantwortlich": st.session_state["uebernaechster_input_verantwortlich"],
         "diverses_cards": st.session_state["diverses_cards"],
     }
@@ -476,14 +483,14 @@ def render_program_planning_table() -> None:
     """Editierbare Tabelle der Programmpunkte für den nächsten Nachmittag."""
     st.markdown('<div class="next-subband">Programmideen zum nächsten Nachmittag</div>', unsafe_allow_html=True)
 
-    head1, head2, head3, head4 = st.columns([1, 2.2, 5.4, .55])
+    head1, head2, head3, head4 = st.columns([0.7, 1.25, 6.65, .55])
     head1.markdown("**Zeit**")
     head2.markdown("**Block**")
     head3.markdown("**Notizen / Ablauf**")
 
     for block in st.session_state["program_blocks"]:
         bid = block["id"]
-        ctime, ctitle, cnotes, cdelete = st.columns([1, 2.2, 5.4, .55])
+        ctime, ctitle, cnotes, cdelete = st.columns([0.7, 1.25, 6.65, .55])
 
         with ctime:
             if block.get("fixed"):
@@ -545,28 +552,88 @@ def render_diverses_section() -> None:
     st.button("➕ Diverses-Karte hinzufügen", on_click=add_diverses_card, use_container_width=True)
 
 
-def render_actions_section() -> None:
-    """Fusszeile mit den zwei Haupt-Aktionen: Entwurf speichern und PDF-Export.
+# #############################################################################
+# 3. PDF-GENERIERUNG
+# #############################################################################
+def _pdf_date(value):
+    value=parse_date(value); return value.strftime("%d.%m.%Y") if value else ""
 
-    Der Speichern-Knopf ist voll funktionsfähig. Der PDF-Knopf ist bereits
-    vorhanden, ruft aber noch keine echte PDF-Erstellung auf (siehe Bereich
-    3, PDF-GENERIERUNG, weiter unten).
-    """
-    st.divider()
-    action_save, action_pdf = st.columns(2)
+def _wrap(text,font,size,width):
+    result=[]
+    for paragraph in str(text or "").splitlines() or [""]:
+        words=paragraph.split()
+        if not words: result.append(""); continue
+        line=words[0]
+        for word in words[1:]:
+            candidate=f"{line} {word}"
+            if pdfmetrics.stringWidth(candidate,font,size)<=width: line=candidate
+            else: result.append(line); line=word
+        result.append(line)
+    return result
 
-    with action_save:
-        if st.button("💾 Entwurf speichern", type="primary", use_container_width=True):
-            try:
-                saved = save_draft()
-                st.success(f"Entwurf gespeichert: {draft_label(saved)}")
-            except OSError as exc:
-                st.error(f"Der Entwurf konnte nicht gespeichert werden: {exc}")
+def create_pdf(payload):
+    out=BytesIO(); pw,ph=landscape(A4); margin=12*mm; width=pw-2*margin; radius=2*mm
+    c=canvas.Canvas(out,pagesize=(pw,ph)); regular="Helvetica"; bold="Helvetica-Bold"; y=ph-margin; page=1
+    def footer():
+        c.setFont(regular,7); c.setFillColor(colors.HexColor("#6B7280")); c.drawRightString(pw-margin,6*mm,f"Seite {page}")
+    footer()
+    def ensure(height):
+        nonlocal y,page
+        if y-height<12*mm: c.showPage(); page+=1; y=ph-margin; footer()
+    def box(x,top,w,h,fill="#F0F2F6",stroke="#C7CDD3"):
+        c.setFillColor(colors.HexColor(fill)); c.setStrokeColor(colors.HexColor(stroke)); c.setLineWidth(.45); c.roundRect(x,top-h,w,h,radius,fill=1,stroke=1)
+    def text(value,x,top,w,font=regular,size=8.5,color="#172033",leading=10):
+        c.setFont(font,size); c.setFillColor(colors.HexColor(color))
+        for line in _wrap(value,font,size,w): c.drawString(x,top,line); top-=leading
+    def band(label,bg,fg):
+        nonlocal y
+        h=11.5*mm; ensure(h+8*mm); box(margin,y,width,h,bg,"#7F8C8D"); c.setFont(bold,10); c.setFillColor(colors.HexColor(fg)); c.drawString(margin+4*mm,y-7.2*mm,label); y-=h+5*mm
+    def fields(items,ratios):
+        nonlocal y
+        gap=2*mm; available=width-gap*(len(items)-1); total=sum(ratios); widths=[available*r/total for r in ratios]
+        counts=[max(1,len(_wrap(value,regular,8.5,w-6*mm))) for (_,value),w in zip(items,widths)]
+        field_h=max(9*mm,max(counts)*10+5*mm); total_h=3*mm+field_h; ensure(total_h+4*mm); x=margin
+        for (label,value),w in zip(items,widths):
+            c.setFont(bold,7); c.setFillColor(colors.HexColor("#1F4E78")); c.drawString(x,y,label); box(x,y-3*mm,w,field_h,"#F0F2F6","#F0F2F6"); text(value,x+3*mm,y-8.5*mm,w-6*mm); x+=w+gap
+        y-=total_h+4*mm
+    def area(label,value):
+        nonlocal y
+        count=max(1,len(_wrap(value,regular,8.5,width-6*mm))); h=max(9*mm,count*10+5*mm); ensure(h+10*mm)
+        c.setFont(bold,7); c.setFillColor(colors.HexColor("#1F4E78")); c.drawString(margin,y,label); box(margin,y-3*mm,width,h,"#F0F2F6","#F0F2F6"); text(value,margin+3*mm,y-8.5*mm,width-6*mm); y-=h+7*mm
+    c.setFont(bold,21); c.setFillColor(colors.HexColor("#1F4E78")); c.drawString(margin,y-6*mm,"Sitzungsprotokoll Jungschi Neuhof"); y-=16*mm
+    band("Heutige Sitzung","#D9EAF7","#1F4E78"); fields([("Sitzung vom",_pdf_date(payload.get("sitzung_vom"))),("Thema",payload.get("thema_heute",""))],[1,9])
+    names=", ".join(n for n in TEILNEHMENDE if payload.get("anwesend",{}).get(n)) or "Niemand ausgewählt"; c.setFont(bold,7); c.setFillColor(colors.HexColor("#1F4E78")); c.drawString(margin,y,"Anwesend"); text(names,margin,y-5*mm,width); y-=max(12*mm,len(_wrap(names,regular,8.5,width))*10+7*mm)
+    band("Nächstes Mal","#E4F2DF","#376B2B"); fields([("Datum",_pdf_date(payload.get("naechstes_datum"))),("Thema",payload.get("naechstes_thema","")),("Input verantwortlich",payload.get("naechster_input_verantwortlich",""))],[1,6.5,1.5]); area("Gedanken zum nächsten Input",payload.get("gedanken_naechster_input",""))
+    band("Programmideen zum nächsten Nachmittag","#E4F2DF","#376B2B")
+    rows=[("Zeit","Block","Notizen / Ablauf",True)]+[(b.get("time",""),b.get("title",""),b.get("details",""),False) for b in payload.get("program_blocks",[])]
+    gap=2*mm; widths=[(width-2*gap)*.11,(width-2*gap)*.22,(width-2*gap)*.67]
+    for v1,v2,v3,header in rows:
+        font=bold if header else regular; size=7 if header else 8.2; count=max(max(1,len(_wrap(v,font,size,w-5*mm))) for v,w in zip((v1,v2,v3),widths)); h=max(7*mm,count*9+4*mm); ensure(h+3*mm); x=margin
+        for value,w in zip((v1,v2,v3),widths): box(x,y,w,h,"#F0F2F6" if header else "#FFFFFF"); text(value,x+2.5*mm,y-4.8*mm,w-5*mm,font,size,"#1F4E78" if header else "#172033",9); x+=w+gap
+        y-=h+2*mm
+    y-=3*mm
+    band("Programm heute","#D9EAF7","#1F4E78"); area("Heutiges Programm",payload.get("programm_heute",""))
+    band("Input übernächstes Mal","#FFF0D5","#8A5600"); fields([("Datum",_pdf_date(payload.get("uebernaechstes_datum"))),("Thema",payload.get("uebernaechster_input_thema","")),("Verantwortlich",payload.get("uebernaechster_input_verantwortlich",""))],[1,6,2])
+    band("Diverses","#EEE1F6","#67417E")
+    cards=payload.get("diverses_cards",[])
+    if not cards: text("Noch keine Karte vorhanden.",margin,y,width,color="#667085"); y-=8*mm
+    for card in cards:
+        title=card.get("title") or "Titel"; body=card.get("text",""); title_n=max(1,len(_wrap(title,bold,8.5,width-6*mm))); body_n=max(1,len(_wrap(body,regular,8.5,width-6*mm))); h=max(12*mm,(title_n+body_n)*10+7*mm); ensure(h+4*mm); box(margin,y,width,h,"#FFFFFF"); text(title,margin+3*mm,y-6*mm,width-6*mm,bold,8.5,"#1F4E78"); text(body,margin+3*mm,y-(title_n*10+8*mm),width-6*mm); y-=h+4*mm
+    c.save(); return out.getvalue()
 
-    with action_pdf:
-        if st.button("⬇️ PDF herunterladen", use_container_width=True):
-            st.info("Die PDF-Erstellung ist noch nicht implementiert.")
+def pdf_filename(payload):
+    d=parse_date(payload.get("sitzung_vom")); date_part=d.isoformat() if d else "ohne-datum"; topic=safe_filename(str(payload.get("thema_heute","")))[:55]; return f"{safe_filename(f'Sitzungsprotokoll_{date_part}_{topic}')}.pdf"
 
+def render_actions_section():
+    st.divider(); save_col,pdf_col=st.columns(2)
+    with save_col:
+        if st.button("💾 Entwurf speichern",type="primary",use_container_width=True):
+            try: saved=save_draft(); st.success(f"Entwurf gespeichert: {draft_label(saved)}")
+            except OSError as exc: st.error(f"Der Entwurf konnte nicht gespeichert werden: {exc}")
+    with pdf_col:
+        try:
+            payload=payload_from_state(); st.download_button("⬇️ PDF herunterladen",data=create_pdf(payload),file_name=pdf_filename(payload),mime="application/pdf",use_container_width=True)
+        except Exception as exc: st.error(f"Die PDF konnte nicht erstellt werden: {exc}")
 
 def main() -> None:
     """Baut die komplette Seite in der Reihenfolge der Formularabschnitte auf."""
@@ -587,14 +654,3 @@ def main() -> None:
 
 
 main()
-
-
-# #############################################################################
-# 3. PDF-GENERIERUNG
-# #############################################################################
-#
-# Noch nicht implementiert. Hier soll später eine Funktion wie
-# create_pdf(payload: dict) -> bytes entstehen, die aus dem Payload-Dict
-# (siehe payload_from_state() in Bereich 1) ein fertiges PDF erzeugt.
-# render_actions_section() ruft diese Funktion dann anstelle des
-# aktuellen Platzhalter-Hinweises auf.

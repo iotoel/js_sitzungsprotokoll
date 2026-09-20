@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "gespeichert_am": "2026-09-20T14:15:06",
+  "sitzung_vom": "2026-09-19",
+  "thema_heute": "Schmied",
+  "anwesend": {
+    "Joel Aeschlimann": true,
+    "Dario Jaggi": false,
+    "Simon Lendenmann": false,
+    "Colin Saluz": true,
+    "Dylan Egli": false,
+    "Sarai Wolfensberger": true,
+    "Saphira Sommerhalder": true,
+    "Chiara Ruosch": true
+  },
+  "naechstes_datum": "2026-11-07",
+  "naechstes_thema": "Töpfer",
+  "naechster_input_verantwortlich": "Simon",
+  "gedanken_naechster_input": "",
+  "programmideen_naechster_nachmittag": "",
+  "programm_heute": "Wieso 30 Minuten Begrüssung? --> Weg bereits eingeplant\n\nSpiel wo? --> unterwegs bis zum Tobelweiher",
+  "program_blocks": [
+    {
+      "id": "6844ba476d",
+      "time": "11:00",
+      "title": "Sitzung",
+      "details": "Joel",
+      "fixed": true
+    },
+    {
+      "id": "c9ac32286e",
+      "time": "12:00",
+      "title": "Essen",
+      "details": "Chiara",
+      "fixed": true
+    },
+    {
+      "id": "d6a04458af",
+      "time": "14:00",
+      "title": "Begrüssung",
+      "details": "Joel",
+      "fixed": true
+    },
+    {
+      "id": "2366d1136d",
+      "time": "14:10",
+      "title": "Töpfern",
+      "details": "Dario",
+      "fixed": false
+    },
+    {
+      "id": "3383383a8c",
+      "time": "14:30",
+      "title": "Hosensackspiele",
+      "details": "Colin",
+      "fixed": false
+    },
+    {
+      "id": "f0856bd077",
+      "time": "15:45",
+      "title": "Zvieri",
+      "details": "Chiara",
+      "fixed": false
+    },
+    {
+      "id": "8bf853384c",
+      "time": "16:00",
+      "title": "Input",
+      "details": "Simon",
+      "fixed": false
+    },
+    {
+      "id": "b25673a369",
+      "time": "16:58",
+      "title": "Tschi-ai-ai",
+      "details": "",
+      "fixed": true
+    },
+    {
+      "id": "6b68ac36cd",
+      "time": "17:00",
+      "title": "Schluss",
+      "details": "",
+      "fixed": true
+    }
+  ],
+  "uebernaechstes_datum": "2026-11-21",
+  "uebernaechster_input_thema": "",
+  "uebernaechster_input_verantwortlich": "Sarai mit Saphira",
+  "diverses_cards": [
+    {
+      "id": "610c01a56c",
+      "title": "Adressliste Leiter",
+      "text": "Bitte Adressliste aktualisieren, damit ich sie dem Sekretariat senden kann."
+    },
+    {
+      "id": "041f832519",
+      "title": "Adressliste Kinder",
+      "text": "Bitte Adressliste aktualisieren, dass wir diese wieder haben."
+    },
+    {
+      "id": "6d58c7065c",
+      "title": "Daten 2027",
+      "text": "Bitte Daten 2027 bereits in die Agenda eintragen."
+    },
+    {
+      "id": "246432fa1a",
+      "title": "Gebetsanliegen --> Jugendkoordinationssitzung",
+      "text": "Dankbar:\n - coole Nachmittage mit den Kindern\n - viele regelmässige Kinder\nBitten:\n - gute Überbrückung der Militärabwesenheiten nächstes Jahr\n - schnelles Zurechtfinden in der neuen HL-Rolle von Dario und Joel"
+    }
+  ]
+}
