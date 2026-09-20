@@ -487,18 +487,18 @@ def render_program_planning_table() -> None:
 
         with ctime:
             if block.get("fixed"):
-                st.text_input("Zeit", value=block["time"], key=f"fixed_time_{bid}", disabled=True, label_visibility="collapsed")
+                st.text_input("Zeit", value=block["time"], key=f"fixed_time_{bid}", label_visibility="collapsed")
             else:
                 st.text_input("Zeit", value=block.get("time", ""), key=f"program_time_{bid}", label_visibility="collapsed")
 
         with ctitle:
             if block.get("fixed"):
-                st.text_input("Block", value=block["title"], key=f"fixed_title_{bid}", disabled=True, label_visibility="collapsed")
+                st.text_input("Block", value=block["title"], key=f"fixed_title_{bid}", label_visibility="collapsed")
             else:
                 st.text_input("Block", value=block.get("title", ""), key=f"program_title_{bid}", label_visibility="collapsed")
 
         with cnotes:
-            st.text_area("Notizen", value=block.get("details", ""), key=f"program_details_{bid}", height=72, label_visibility="collapsed")
+            st.text_area("Notizen", value=block.get("details", ""), key=f"program_details_{bid}", height=1, label_visibility="collapsed")
 
         with cdelete:
             if not block.get("fixed"):
@@ -536,7 +536,7 @@ def render_diverses_section() -> None:
     for card in st.session_state["diverses_cards"]:
         cid = card["id"]
         with st.container(border=True):
-            x1, x2 = st.columns([8, .55])
+            x1, x2 = st.columns([9.45, .55])
             with x1:
                 st.text_input("Titel", value=card.get("title", ""), key=f"div_title_{cid}", label_visibility="collapsed", placeholder="Titel")
             with x2:
