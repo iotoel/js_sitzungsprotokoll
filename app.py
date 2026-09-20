@@ -1,18 +1,15 @@
 """Sitzungsprotokoll Jungschi Neuhof.
 
 Streamlit-App zum Erfassen von Sitzungsprotokollen. Erlaubt das Ausfüllen
-eines Formulars, das Speichern als JSON-Entwurf auf der Festplatte sowie
-den Export als formatiertes PDF.
+eines Formulars und das Speichern als JSON-Entwurf auf der Festplatte.
 
-Der Code ist in folgende Abschnitte gegliedert:
-    1. Konfiguration & Konstanten
-    2. Allgemeine Hilfsfunktionen
-    3. Session-State: Standardwerte & Verwaltung
-    4. Synchronisation der dynamischen Formular-Widgets
-    5. Umwandlung Session-State <-> Speicher-Payload (JSON)
-    6. Entwürfe auf der Festplatte (lesen/schreiben/auflisten)
-    7. PDF-Erstellung
-    8. Seitenaufbau (Streamlit-UI)
+Der Code ist in drei grosse Bereiche gegliedert:
+    1. VORARBEITEN       - Konfiguration, Hilfsfunktionen, State-Verwaltung,
+                            Laden/Speichern von Entwürfen (alles, was vor dem
+                            eigentlichen Seitenaufbau bereitstehen muss).
+    2. STREAMLIT-SEITE    - Aufbau und Anzeige der Seite, unterteilt in eine
+                            Funktion pro Block auf der Seite.
+    3. PDF-GENERIERUNG    - Aktuell noch nicht implementiert (Platzhalter).
 """
 
 from __future__ import annotations
@@ -20,28 +17,24 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime, timedelta
-from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import streamlit as st
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import mm
-from reportlab.platypus import (
-    KeepTogether,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
 
-# =============================================================================
-# 1. Konfiguration & Konstanten
-# =============================================================================
+
+# #############################################################################
+# 1. VORARBEITEN
+# #############################################################################
+#
+# Dieser Bereich enthält alles, was vor dem Zeichnen der Seite feststehen
+# muss: Konfiguration, allgemeine Hilfsfunktionen, den Session-State (inkl.
+# Standardwerten), die Umwandlung des States in ein speicherbares Format
+# sowie das Lesen/Schreiben von Entwürfen auf der Festplatte.
+
+# -----------------------------------------------------------------------
+# 1.1 Konfiguration & Konstanten
+# -----------------------------------------------------------------------
 
 st.set_page_config(page_title="Sitzungsprotokoll", page_icon="📝", layout="wide")
 
@@ -72,25 +65,10 @@ FIXED_PROGRAM = [
     ("17:00", "Schluss"),
 ]
 
-# Farbpalette, sowohl für das UI-CSS als auch für das PDF verwendet.
-BLUE = colors.HexColor("#1F4E78")
-TODAY = colors.HexColor("#D9EAF7")
-TODAY_DARK = colors.HexColor("#1F4E78")
-NEXT = colors.HexColor("#E4F2DF")
-NEXT_DARK = colors.HexColor("#376B2B")
-OVERNEXT = colors.HexColor("#FFF0D5")
-OVERNEXT_DARK = colors.HexColor("#8A5600")
-MISC = colors.HexColor("#EEE1F6")
-MISC_DARK = colors.HexColor("#67417E")
-LIGHT_BLUE = TODAY
-PALE_BLUE = colors.HexColor("#F5F7F9")
-BORDER = colors.HexColor("#7F8C8D")
-GRAY = colors.HexColor("#666666")
 
-
-# =============================================================================
-# 2. Allgemeine Hilfsfunktionen
-# =============================================================================
+# -----------------------------------------------------------------------
+# 1.2 Allgemeine Hilfsfunktionen
+# -----------------------------------------------------------------------
 
 
 def new_id() -> str:
@@ -115,26 +93,15 @@ def parse_date(value, fallback=None):
         return fallback
 
 
-def esc(value: object) -> str:
-    """Escaped Text für die Verwendung in ReportLab-Paragraphen (HTML-ähnlich)."""
-    text = "" if value is None else str(value)
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\n", "<br/>")
-    )
-
-
 def safe_filename(value: str) -> str:
     """Macht aus einem beliebigen Text einen sicheren Dateinamen-Bestandteil."""
     cleaned = re.sub(r"[^A-Za-z0-9ÄÖÜäöü._-]+", "_", value.strip())
     return cleaned.strip("_.") or "Sitzungsprotokoll"
 
 
-# =============================================================================
-# 3. Session-State: Standardwerte & Verwaltung
-# =============================================================================
+# -----------------------------------------------------------------------
+# 1.3 Session-State: Standardwerte & Verwaltung
+# -----------------------------------------------------------------------
 
 
 def default_program() -> list[dict]:
@@ -189,9 +156,9 @@ def reset_form() -> None:
     st.session_state["active_draft"] = None
 
 
-# =============================================================================
-# 4. Synchronisation der dynamischen Formular-Widgets
-# =============================================================================
+# -----------------------------------------------------------------------
+# 1.4 Synchronisation der dynamischen Formular-Widgets
+# -----------------------------------------------------------------------
 #
 # Programmpunkte und Diverses-Karten werden dynamisch gerendert (eine Zeile
 # pro Eintrag, mit einem eigenen Widget-Key je Feld). Bevor Einträge
@@ -245,9 +212,9 @@ def remove_diverses_card(card_id: str) -> None:
     ]
 
 
-# =============================================================================
-# 5. Umwandlung Session-State <-> Speicher-Payload (JSON)
-# =============================================================================
+# -----------------------------------------------------------------------
+# 1.5 Umwandlung Session-State <-> Speicher-Payload (JSON)
+# -----------------------------------------------------------------------
 
 
 def payload_from_state() -> dict:
@@ -333,9 +300,9 @@ def load_payload(payload: dict) -> None:
             del st.session_state[key]
 
 
-# =============================================================================
-# 6. Entwürfe auf der Festplatte
-# =============================================================================
+# -----------------------------------------------------------------------
+# 1.6 Entwürfe auf der Festplatte (lesen/schreiben/auflisten)
+# -----------------------------------------------------------------------
 
 
 def draft_files() -> list[Path]:
@@ -397,296 +364,14 @@ def save_draft() -> Path:
     return path
 
 
-# =============================================================================
-# 7. PDF-Erstellung
-# =============================================================================
-
-
-def add_footer(canvas, doc) -> None:
-    """Zeichnet die Fusszeile (Titel links, Seitenzahl rechts) auf jede Seite."""
-    canvas.saveState()
-    canvas.setFont("Helvetica", 8)
-    canvas.setFillColor(GRAY)
-    canvas.drawString(12 * mm, 8 * mm, "Sitzungsprotokoll Jungschi Neuhof")
-    canvas.drawRightString(198 * mm, 8 * mm, f"Seite {doc.page}")
-    canvas.restoreState()
-
-
-def p(text, style) -> Paragraph:
-    """Erstellt einen Paragraph; leerer Text wird durch ein geschütztes Leerzeichen ersetzt."""
-    return Paragraph(esc(text) if str(text).strip() else "&nbsp;", style)
-
-
-def section_header(text: str, style, width=186 * mm, fill=LIGHT_BLUE, text_color=BLUE) -> Table:
-    """Ein farbig hinterlegtes, breites Balken-Label (z. B. "Nächstes Mal")."""
-    table = Table([[Paragraph(f"<b>{esc(text)}</b>", style)]], colWidths=[width])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), fill),
-        ("TEXTCOLOR", (0, 0), (-1, -1), text_color),
-        ("BOX", (0, 0), (-1, -1), 0.8, BORDER),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2.3 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2.3 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.7 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.7 * mm),
-    ]))
-    return table
-
-
-def content_box(title: str, content: str, body_style, small_style, fill=PALE_BLUE, text_color=BLUE) -> Table:
-    """Eine Box mit farbigem Titel-Kopf und Freitext darunter (z. B. "Diverses")."""
-    data = [[Paragraph(f"<b>{esc(title)}</b>", small_style)], [p(content, body_style)]]
-    table = Table(data, colWidths=[186 * mm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), fill),
-        ("TEXTCOLOR", (0, 0), (-1, 0), text_color),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.5, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2.5 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2.5 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.8 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8 * mm),
-    ]))
-    return table
-
-
-def build_pdf_styles() -> dict[str, ParagraphStyle]:
-    """Definiert die im PDF verwendeten Textstile."""
-    base = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "title", parent=base["Title"], fontName="Helvetica-Bold", fontSize=15,
-        leading=18, textColor=BLUE, alignment=TA_CENTER, spaceAfter=3 * mm,
-    )
-    body = ParagraphStyle(
-        "body", parent=base["BodyText"], fontName="Helvetica", fontSize=9,
-        leading=11.5, alignment=TA_LEFT, allowWidows=0, allowOrphans=0,
-    )
-    small = ParagraphStyle("small", parent=body, fontSize=8.2, leading=10)
-    tiny = ParagraphStyle("tiny", parent=body, fontSize=7.6, leading=9)
-    return {"title": title, "body": body, "small": small, "tiny": tiny}
-
-
-def build_attendance_table(payload: dict, styles: dict) -> Table:
-    """Baut die Anwesenheitsliste (Checkbox-Symbole) für die Kopfzeile."""
-    attendance = payload.get("anwesend", {})
-    present_count = sum(1 for name in TEILNEHMENDE if attendance.get(name, False))
-
-    rows = [[Paragraph(f"<b>Anwesend ({present_count}/{len(TEILNEHMENDE)})</b>", styles["small"])]]
-    rows.extend(
-        [Paragraph(f"{'[X]' if attendance.get(name, False) else '[ ]'}&nbsp;&nbsp;{esc(name)}", styles["tiny"])]
-        for name in TEILNEHMENDE
-    )
-
-    table = Table(rows, colWidths=[61 * mm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), LIGHT_BLUE),
-        ("TEXTCOLOR", (0, 0), (-1, 0), BLUE),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.5, BORDER),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.1 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.1 * mm),
-    ]))
-    return table
-
-
-def build_top_section(payload: dict, styles: dict) -> Table:
-    """Kopfbereich des PDFs: Datum/Thema links, Anwesenheitsliste rechts."""
-    session_date = parse_date(payload.get("sitzung_vom"))
-    date_today = session_date.strftime("%d.%m.%Y") if session_date else ""
-
-    today_info = Table([
-        [Paragraph("<b>Sitzung vom</b>", styles["small"]), p(date_today, styles["body"])],
-        [Paragraph("<b>Thema heute</b>", styles["small"]), p(payload.get("thema_heute", ""), styles["body"])],
-    ], colWidths=[30 * mm, 91 * mm])
-    today_info.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), LIGHT_BLUE),
-        ("TEXTCOLOR", (0, 0), (0, -1), BLUE),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2.2 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2.2 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
-    ]))
-
-    attendees = build_attendance_table(payload, styles)
-
-    top = Table([[today_info, attendees]], colWidths=[121 * mm, 61 * mm], hAlign="LEFT")
-    top.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    return top
-
-
-def build_next_meeting_flowables(payload: dict, styles: dict) -> list:
-    """Abschnitt "Nächstes Mal": Metadaten, Gedanken und Programmideen."""
-    next_date = parse_date(payload.get("naechstes_datum"))
-    date_next = next_date.strftime("%d.%m.%Y") if next_date else ""
-
-    next_meta = Table([[
-        Paragraph("<b>Datum</b>", styles["small"]), p(date_next, styles["body"]),
-        Paragraph("<b>Thema</b>", styles["small"]), p(payload.get("naechstes_thema", ""), styles["body"]),
-        Paragraph("<b>Input verantwortlich</b>", styles["small"]),
-        p(payload.get("naechster_input_verantwortlich", ""), styles["body"]),
-    ]], colWidths=[17 * mm, 27 * mm, 17 * mm, 52 * mm, 35 * mm, 38 * mm])
-    next_meta.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), PALE_BLUE),
-        ("BACKGROUND", (2, 0), (2, 0), PALE_BLUE),
-        ("BACKGROUND", (4, 0), (4, 0), PALE_BLUE),
-        ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 1.8 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 1.8 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.7 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.7 * mm),
-    ]))
-
-    return [
-        section_header("Nächstes Mal", styles["small"], fill=NEXT, text_color=NEXT_DARK),
-        next_meta,
-        Spacer(1, 2.2 * mm),
-        content_box(
-            "Gedanken zum nächsten Input", payload.get("gedanken_naechster_input", ""),
-            styles["body"], styles["small"], fill=NEXT, text_color=NEXT_DARK,
-        ),
-        Spacer(1, 2.2 * mm),
-        content_box(
-            "Programmideen zum nächsten Nachmittag", payload.get("programmideen_naechster_nachmittag", ""),
-            styles["body"], styles["small"],
-        ),
-        Spacer(1, 3 * mm),
-    ]
-
-
-def build_program_table(payload: dict, styles: dict) -> Table:
-    """Tabelle der Programmpunkte (Zeit / Block / Notizen)."""
-    rows = [[
-        Paragraph("<b>Zeit</b>", styles["small"]),
-        Paragraph("<b>Block</b>", styles["small"]),
-        Paragraph("<b>Notizen / Ablauf</b>", styles["small"]),
-    ]]
-    for block in payload.get("program_blocks", []):
-        rows.append([
-            p(block.get("time", ""), styles["body"]),
-            p(block.get("title", ""), styles["body"]),
-            p(block.get("details", ""), styles["body"]),
-        ])
-
-    table = Table(rows, colWidths=[20 * mm, 48 * mm, 118 * mm], repeatRows=1)
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), NEXT),
-        ("TEXTCOLOR", (0, 0), (-1, 0), NEXT_DARK),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (0, 1), (0, -1), "CENTER"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.8 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8 * mm),
-    ]))
-    return table
-
-
-def build_today_program_flowables(payload: dict, styles: dict) -> list:
-    """Abschnitt "Programm heute": Programmtabelle plus Freitext-Notizen."""
-    return [
-        section_header("Programm heute", styles["small"]),
-        build_program_table(payload, styles),
-        Spacer(1, 3 * mm),
-        content_box(
-            "Programm heute", payload.get("programm_heute", ""),
-            styles["body"], styles["small"], fill=TODAY, text_color=TODAY_DARK,
-        ),
-        Spacer(1, 3 * mm),
-    ]
-
-
-def build_overnext_table(payload: dict, styles: dict) -> Table:
-    """Balken "Input übernächstes Mal" mit Datum und Verantwortlichkeit."""
-    overnext_date = parse_date(payload.get("uebernaechstes_datum"))
-    date_overnext = overnext_date.strftime("%d.%m.%Y") if overnext_date else ""
-
-    table = Table([[
-        Paragraph("<b>Input übernächstes Mal</b>", styles["small"]),
-        Paragraph("<b>Datum</b>", styles["small"]), p(date_overnext, styles["body"]),
-        Paragraph("<b>Verantwortlich</b>", styles["small"]),
-        p(payload.get("uebernaechster_input_verantwortlich", ""), styles["body"]),
-    ]], colWidths=[43 * mm, 17 * mm, 31 * mm, 29 * mm, 66 * mm])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), OVERNEXT),
-        ("BACKGROUND", (1, 0), (1, 0), OVERNEXT),
-        ("BACKGROUND", (3, 0), (3, 0), OVERNEXT),
-        ("TEXTCOLOR", (0, 0), (0, 0), OVERNEXT_DARK),
-        ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
-        ("INNERGRID", (0, 0), (-1, -1), 0.4, BORDER),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2 * mm),
-        ("TOPPADDING", (0, 0), (-1, -1), 1.8 * mm),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8 * mm),
-    ]))
-    return table
-
-
-def build_diverses_flowables(payload: dict, styles: dict) -> list:
-    """Abschnitt "Diverses": eine Box pro Karte, oder ein Platzhalter."""
-    flowables = [section_header("Diverses", styles["small"], fill=MISC, text_color=MISC_DARK)]
-
-    cards = payload.get("diverses_cards", [])
-    if cards:
-        for card in cards:
-            card_title = card.get("title", "").strip() or "Diverses"
-            flowables.append(KeepTogether([
-                content_box(card_title, card.get("text", ""), styles["body"], styles["small"], fill=MISC, text_color=MISC_DARK)
-            ]))
-            flowables.append(Spacer(1, 2 * mm))
-    else:
-        flowables.append(content_box("Diverses", "", styles["body"], styles["small"], fill=MISC, text_color=MISC_DARK))
-
-    return flowables
-
-
-def create_pdf(payload: dict) -> bytes:
-    """Erstellt das vollständige Sitzungsprotokoll-PDF aus dem Payload-Dict."""
-    output = BytesIO()
-    doc = SimpleDocTemplate(
-        output,
-        pagesize=A4,
-        leftMargin=12 * mm,
-        rightMargin=12 * mm,
-        topMargin=10 * mm,
-        bottomMargin=13 * mm,
-        title="Sitzungsprotokoll Jungschi Neuhof",
-        author="Jungschi Neuhof",
-    )
-    styles = build_pdf_styles()
-
-    story: list = [Paragraph("Sitzungsprotokoll", styles["title"])]
-    story.append(build_top_section(payload, styles))
-    story.append(Spacer(1, 3 * mm))
-    story.extend(build_next_meeting_flowables(payload, styles))
-    story.extend(build_today_program_flowables(payload, styles))
-    story.append(build_overnext_table(payload, styles))
-    story.append(Spacer(1, 3 * mm))
-    story.extend(build_diverses_flowables(payload, styles))
-
-    doc.build(story, onFirstPage=add_footer, onLaterPages=add_footer)
-    return output.getvalue()
-
-
-# =============================================================================
-# 8. Seitenaufbau (Streamlit-UI)
-# =============================================================================
+# #############################################################################
+# 2. STREAMLIT-SEITE
+# #############################################################################
+#
+# Dieser Bereich baut die eigentliche Seite auf. Für jeden sichtbaren Block
+# auf der Seite (Sidebar, Kopfbereich, "Nächstes Mal", Programmtabelle,
+# "Diverses", Aktionsleiste) gibt es eine eigene render_*-Funktion.
+# main() ruft diese Funktionen am Ende in der Anzeigereihenfolge auf.
 
 
 def apply_custom_css() -> None:
@@ -862,7 +547,12 @@ def render_diverses_section() -> None:
 
 
 def render_actions_section() -> None:
-    """Fusszeile: Entwurf speichern und PDF herunterladen."""
+    """Fusszeile mit den zwei Haupt-Aktionen: Entwurf speichern und PDF-Export.
+
+    Der Speichern-Knopf ist voll funktionsfähig. Der PDF-Knopf ist bereits
+    vorhanden, ruft aber noch keine echte PDF-Erstellung auf (siehe Bereich
+    3, PDF-GENERIERUNG, weiter unten).
+    """
     st.divider()
     action_save, action_pdf = st.columns(2)
 
@@ -875,20 +565,8 @@ def render_actions_section() -> None:
                 st.error(f"Der Entwurf konnte nicht gespeichert werden: {exc}")
 
     with action_pdf:
-        try:
-            pdf_payload = payload_from_state()
-            pdf_bytes = create_pdf(pdf_payload)
-            session_date = parse_date(pdf_payload.get("sitzung_vom"))
-            filename_date = session_date.strftime("%Y-%m-%d") if session_date else "ohne-Datum"
-            st.download_button(
-                "⬇️ PDF herunterladen",
-                data=pdf_bytes,
-                file_name=f"Sitzungsprotokoll_{filename_date}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
-        except Exception as exc:
-            st.error(f"Das PDF konnte nicht erstellt werden: {exc}")
+        if st.button("⬇️ PDF herunterladen", use_container_width=True):
+            st.info("Die PDF-Erstellung ist noch nicht implementiert.")
 
 
 def main() -> None:
@@ -910,3 +588,14 @@ def main() -> None:
 
 
 main()
+
+
+# #############################################################################
+# 3. PDF-GENERIERUNG
+# #############################################################################
+#
+# Noch nicht implementiert. Hier soll später eine Funktion wie
+# create_pdf(payload: dict) -> bytes entstehen, die aus dem Payload-Dict
+# (siehe payload_from_state() in Bereich 1) ein fertiges PDF erzeugt.
+# render_actions_section() ruft diese Funktion dann anstelle des
+# aktuellen Platzhalter-Hinweises auf.
