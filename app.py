@@ -461,7 +461,7 @@ def render_next_meeting_section() -> None:
     """Abschnitt "Nächstes Mal": Termin, Thema, Input-Verantwortliche und Gedanken."""
     st.markdown('<div class="pdf-band next-band">Nächstes Mal</div>', unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1, 6, 2])
+    c1, c2, c3 = st.columns([1, 6.5, 1.5])
     with c1:
         st.date_input("Datum", key="naechstes_datum", format="DD.MM.YYYY")
     with c2:
@@ -501,8 +501,7 @@ def render_program_planning_table() -> None:
             st.text_area("Notizen", value=block.get("details", ""), key=f"program_details_{bid}", height=1, label_visibility="collapsed")
 
         with cdelete:
-            if not block.get("fixed"):
-                st.button("🗑️", key=f"remove_program_{bid}", on_click=remove_program_block, args=(bid,))
+            st.button("🗑️", key=f"remove_program_{bid}", on_click=remove_program_block, args=(bid,))
 
     st.button("➕ Programmblock hinzufügen", on_click=add_program_block, use_container_width=True)
 
